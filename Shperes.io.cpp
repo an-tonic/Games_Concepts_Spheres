@@ -3,6 +3,8 @@
 #include <TL-Engine.h>	// TL-Engine include file and namespace
 #include <iostream>
 
+#define NUMofCUBES 12
+
 using namespace tle;
 using namespace std;
 
@@ -10,10 +12,13 @@ using namespace std;
 float kSphereSpeed = 0.05f;
 float kRotationSpeed = 0.05f;
 float kCamereSpeed = 0.05f;
+int playerPoints = 0;
+int sphereRadius = 10;
 
-enum EGameState {Over, Running, Paused};
-EGameState gameState = Running;
 
+enum EGameState {GameOver, Playing, Paused};
+EGameState gameState = Playing;
+enum ECamera {TopView, Isometric};
 
 //Functions
 
@@ -22,7 +27,7 @@ EGameState gameState = Running;
 /// </summary>
 /// <param name="a">The pointer to the "from" object.</param>
 /// <param name="b">The pointer to the "to" object.</param>
-/// <returns></returns>
+/// <returns>Length of a vector</returns>
 float vectorLen(IModel* a, IModel* b) {
 	float vectorX = b->GetX() - a->GetX();
 	float vectorY = b->GetY() - a->GetY();
@@ -32,8 +37,34 @@ float vectorLen(IModel* a, IModel* b) {
 }
 
 
+/// <summary>
+/// Randomizes the cube positions withing the -80/80 coordinates.
+/// </summary>
+/// <param name="array">Array pointer for the cube.</param>
+/// <param name="mesh">Mesh of a cube.</param>
+void randomCubeGenerator(IModel* array[], IMesh* mesh, IModel* playerMesh) {
+	
+	//Random cube generation
+	srand(time(NULL));
+	for (int i = 0; i < NUMofCUBES; i++) {
+
+		array[i] = mesh->CreateModel(rand() % 160 - 80, 5, rand() % 160 - 80);
+
+		for (int j = 0; j < i; j++) {
+			
+			while (vectorLen(array[i], playerMesh) < 10 || vectorLen(array[i], array[j]) < 10) {
+				array[i]->SetPosition(rand() % 160 - 80, 5, rand() % 160 - 80);
+			}
+		}
+	}	
+}
+
+
 void main()
 {
+	
+
+
 	// Create a 3D engine (using TLX engine here) and open a window for it
 	I3DEngine* myEngine = New3DEngine( kTLX );
 	myEngine->StartWindowed();
@@ -42,10 +73,13 @@ void main()
 	myEngine->AddMediaFolder( "C:\\Users\\aserdyukov\\source\\repos\\Games-Concepts-Spheres\\Assessment1Resources");
 
 	/**** Set up your scene here ****/
-	ICamera* myCamera = myEngine->CreateCamera(kManual);
-	//TODO: Change camera to Manual
+	ICamera* myCamera = myEngine->CreateCamera(kFPS);
+	//TODO: change camera to manual
 	myCamera->RotateLocalX(90);
 	myCamera->SetPosition(0, 200, 0);
+	ECamera myECamera = TopView;
+
+	IFont* myFont = myEngine->LoadFont("Times New Roman", 36);
 
 	IMesh* waterMesh = myEngine->LoadMesh("water.x");
 	IModel* water = waterMesh->CreateModel(0, -5, 0);
@@ -58,27 +92,28 @@ void main()
 
 	IMesh* sphereMesh = myEngine->LoadMesh("spheremesh.x");
 	IModel* sphere = sphereMesh->CreateModel(0, 10, 0);
-
+	
 	IMesh* cubeMesh = myEngine->LoadMesh("minicube.x");
 	
-	IModel* cube1 = cubeMesh->CreateModel(-80, 5, 80);
-	IModel* cube2 = cubeMesh->CreateModel(80, 5, 80);
-	IModel* cube3 = cubeMesh->CreateModel(80, 5, -80);
-	IModel* cube4 = cubeMesh->CreateModel(-80, 5, -80);
+	
+	
+	//Holds the cubes
+	IModel* cubes[NUMofCUBES] = {};
 
-	IModel* cubes[] = {cube1, cube2, cube3 , cube4};
+	randomCubeGenerator(cubes, cubeMesh, sphere);
 
 
 	// The main game loop, repeat until engine is stopped
-	while (myEngine->IsRunning() && gameState != Over)
+	while (myEngine->IsRunning() && gameState != GameOver)
 	{
 		// Draw the scene
 		
 		myEngine->DrawScene();
 		
-		
 
 		/**** Update your scene each frame here ****/
+		myFont->Draw("Points: " + to_string(playerPoints), 1100, 10);
+
 
 		if (gameState != Paused) {
 			//The sphere movement
@@ -107,37 +142,68 @@ void main()
 			if (myEngine->KeyHeld(Key_Down)) {
 				myCamera->MoveZ(-kCamereSpeed);
 			}
+			//Isometric camera
+			if (myEngine->KeyHit(Key_2) && myECamera == TopView) {
+				myCamera->ResetOrientation();
+				myCamera->SetPosition(150, 150, -150);
+				myCamera->RotateLocalY(-45);
+				myCamera->RotateLocalX(45);
+				myECamera = Isometric;
+			}
+			
+			
+			if (myEngine->KeyHit(Key_1) && myECamera == Isometric) {
+				myCamera->ResetOrientation();
+				myCamera->SetPosition(0, 200, 0);
+				myCamera->RotateLocalX(90);
+				myECamera = TopView;
+			}
 
 		}
 		//Exit game
 		if (myEngine->KeyHit(Key_Escape)) {
-			gameState = Over;
+			gameState = GameOver;
 		}
 
 		//Game pause
 		if (myEngine->KeyHit(Key_P)) {
-			if (gameState == Running) {
+			if (gameState == Playing) {
 				gameState = Paused;
 				
 			}else{
-				gameState = Running;
+				gameState = Playing;
 			}
 		}
-	//TODO: remove model properly.
 		//Cube proximity evaluator
-		for (IModel* cube : cubes){
+		for (IModel* cube : cubes) {
+			
 			if (vectorLen(sphere, cube) < 5 + 5) {
-				cubeMesh->RemoveModel(cube);
-				break;
+				//cubeMesh->RemoveModel(cube);
+
+				//Update score for picking a sphere
+				playerPoints += 10;
+				
+				//Hide the cube
+				cube->MoveLocalY(-100);
+
+				//Scale the player every 40 points and increase score 
+				if (playerPoints % 40 == 0) {
+					sphere->Scale(1.2);
+					sphereRadius *= 1.2;
+					sphere->SetY(sphereRadius);
+					
+				}
+
+		
 			}
 		}
 
 		
 
 		//Game over when outside of island
-		if (abs(sphere->GetX()) > 100 || abs(sphere->GetZ()) > 100) {
-			gameState = Over;
-		}
+		/*if (abs(sphere->GetX()) > 100 || abs(sphere->GetZ()) > 100) {
+			gameState = GameOver;
+		}*/
 		
 	}
 
