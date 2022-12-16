@@ -42,19 +42,23 @@ float vectorLen(IModel* a, IModel* b) {
 /// </summary>
 /// <param name="array">Array pointer for the cube.</param>
 /// <param name="mesh">Mesh of a cube.</param>
-void randomCubeGenerator(IModel* array[], IMesh* mesh, IModel* playerMesh) {
+void randomCubeGenerator(IModel **array, IMesh* mesh, IModel* playerMesh) {
 	
 	//Random cube generation
 	srand(time(NULL));
 	for (int i = 0; i < NUMofCUBES; i++) {
 
-		array[i] = mesh->CreateModel(rand() % 160 - 80, 5, rand() % 160 - 80);
+		IModel* newCube = mesh->CreateModel(rand() % 160 - 80, 5, rand() % 160 - 80);
 
-		for (int j = 0; j < i; j++) {
+		
+
+		for (int j = 0; j <= i; j++) {
 			
-			while (vectorLen(array[i], playerMesh) < 10 || vectorLen(array[i], array[j]) < 10) {
-				array[i]->SetPosition(rand() % 160 - 80, 5, rand() % 160 - 80);
+			while (vectorLen(newCube, playerMesh) < 10 && vectorLen(newCube, array[j]) < 10) {
+				newCube->SetPosition(rand() % 160 - 80, 5, rand() % 160 - 80);
 			}
+			array[i] = newCube;
+
 		}
 	}	
 }
@@ -98,7 +102,7 @@ void main()
 	
 	
 	//Holds the cubes
-	IModel* cubes[NUMofCUBES] = {};
+	IModel* cubes[NUMofCUBES];
 
 	randomCubeGenerator(cubes, cubeMesh, sphere);
 
