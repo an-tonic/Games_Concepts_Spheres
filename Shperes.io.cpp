@@ -15,6 +15,7 @@ float kCamereSpeed = 90.0f;
 
 int playerPoints = 0;
 int sphereRadius = 10;
+int minumumDistance = 10;
 float minicubeBounary = 2.5 + sphereRadius;
 
 enum EGameState {GameOver, Playing, Paused, GameWon};
@@ -39,6 +40,26 @@ float vectorLen(IModel* a, IModel* b) {
 
 
 /// <summary>
+/// Returns the closest distance of an object to surrounding objects and player
+/// </summary>
+/// <param name="array">Collection of objects to take distance from.</param>
+/// <param name="playerMesh">The player object.</param>
+/// <param name="object">The object we are mesuring distance from.</param>
+/// <param name="arraySize">Number of objects in the array.</param>
+/// <returns>Shortest distance to given object (Float). </returns>
+float closestObject(IModel** array, IModel* playerMesh, IModel* object, int arraySize = NUMofCUBES) {
+	float smallesDistance = vectorLen(object, playerMesh);
+
+	for (int i = 0; i < arraySize; i++) {
+		if (vectorLen(object, array[i]) < smallesDistance) {
+			smallesDistance = vectorLen(object, array[i]);
+		}
+	}
+	return smallesDistance;
+}
+
+
+/// <summary>
 /// Randomizes the cube positions withing the -80/80 coordinates.
 /// </summary>
 /// <param name="array">Array pointer for the cube.</param>
@@ -50,19 +71,17 @@ void randomCubeGenerator(IModel **array, IMesh* mesh, IModel* playerMesh) {
 	for (int i = 0; i < NUMofCUBES; i++) {
 
 		IModel* newCube = mesh->CreateModel(rand() % 160 - 80, 5, rand() % 160 - 80);
-
-		
-
-		for (int j = 0; j <= i; j++) {
-			
-			while (vectorLen(newCube, playerMesh) < 10 && vectorLen(newCube, array[j]) < 10) {
-				newCube->SetPosition(rand() % 160 - 80, 5, rand() % 160 - 80);
-			}
-			array[i] = newCube;
-
+		while (closestObject(array, playerMesh, newCube, i) < minumumDistance) {
+			newCube->SetPosition(rand() % 160 - 80, 5, rand() % 160 - 80);
 		}
+
+		cout << closestObject(array, playerMesh, newCube, i) << endl;
+
+		array[i] = newCube;
 	}	
 }
+
+
 
 
 void main()
@@ -108,6 +127,8 @@ void main()
 
 	randomCubeGenerator(cubes, cubeMesh, sphere);
 
+	
+	
 
 	//Starting the timer for variable timer
 	myEngine->Timer();
@@ -116,7 +137,7 @@ void main()
 	while (myEngine->IsRunning())
 	{
 		// Draw the scene
-		
+		myEngine->StopMouseCapture();
 		myEngine->DrawScene();
 
 		//Storage for previous frame render time
@@ -191,7 +212,7 @@ void main()
 				//cubeMesh->RemoveModel(cube);
 
 				//Update score for picking a sphere
-				playerPoints += 100;
+				playerPoints += 10;
 				
 				//Hide the cube
 				cube->MoveLocalY(-100);
