@@ -172,12 +172,17 @@ void main()
 		//Game pause
 		if (myEngine->KeyHit(Key_P)) {
 			if (gameState == Playing) {
+				
 				gameState = Paused;
 				
 			}else{
 				gameState = Playing;
 			}
 		}
+		if (gameState == Paused) {
+			myFont->Draw("PAUSED", 0, 0);
+		}
+
 		//Cube proximity evaluator
 		for (IModel* cube : cubes) {
 			
