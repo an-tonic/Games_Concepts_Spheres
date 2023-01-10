@@ -17,12 +17,14 @@ int playerPoints = 0;
 int sphereRadius = 10;
 int minumumDistance = 10;
 float minicubeBounary = 2.5 + sphereRadius;
+double hyperTime = 5.0;
 
 enum EGameState {GameOver, Playing, Paused, GameWon};
 EGameState gameState = Playing;
 enum ECamera {TopView, Isometric};
+enum EPowerUp {Regular, Hyper};
 
-
+EPowerUp spherePowerUp = Regular;
 
 //Functions
 
@@ -75,9 +77,7 @@ void respawnCube(IModel** array, IModel* playerMesh, IModel* object, int arraySi
 /// <param name="array">Array pointer for the cube.</param>
 /// <param name="mesh">Mesh of a cube.</param>
 void randomCubeGenerator(IModel **array, IMesh* mesh, IModel* playerMesh) {
-	
-	//Random cube generation
-	
+
 	for (int i = 0; i < NUMofCUBES; i++) {
 
 		IModel* newCube = mesh->CreateModel(rand() % 160 - 80, 5, rand() % 160 - 80);
@@ -91,8 +91,6 @@ void randomCubeGenerator(IModel **array, IMesh* mesh, IModel* playerMesh) {
 
 void main()
 {
-	
-
 
 	// Create a 3D engine (using TLX engine here) and open a window for it
 	I3DEngine* myEngine = New3DEngine( kTLX );
@@ -123,16 +121,19 @@ void main()
 	IModel* sphere = sphereMesh->CreateModel(0, 10, 0);
 	
 	IMesh* cubeMesh = myEngine->LoadMesh("minicube.x");
-	
-	
+	srand(time(NULL));
+	IModel* hypercube = cubeMesh->CreateModel(rand() % 160 - 80, 5, rand() % 160 - 80);
+	hypercube->SetSkin("hypercube.jpg");
 	
 	
 	//Holds the cubes
-	IModel* cubes[NUMofCUBES];
-	srand(time(NULL));
+	IModel** cubes;
+	
+	cubes = new IModel * [NUMofCUBES];
+
 	randomCubeGenerator(cubes, cubeMesh, sphere);
 
-	
+	cubes[NUMofCUBES] = hypercube;
 	
 
 	//Starting the timer for variable timer
@@ -208,18 +209,18 @@ void main()
 		}
 
 		//Cube proximity evaluator
-		for (IModel* cube : cubes) {
+		for (int i = 0; i < NUMofCUBES+1; i++) {
 			
-			if (sphere->GetX() > cube->GetX() - minicubeBounary && sphere->GetX() < cube->GetX() + minicubeBounary &&
-				sphere->GetY() > cube->GetY() - minicubeBounary && sphere->GetY() < cube->GetY() + minicubeBounary &&
-				sphere->GetZ() > cube->GetZ() - minicubeBounary && sphere->GetZ() < cube->GetZ() + minicubeBounary) {
+			if (sphere->GetX() > cubes[i]->GetX() - minicubeBounary && sphere->GetX() < cubes[i]->GetX() + minicubeBounary &&
+				sphere->GetY() > cubes[i]->GetY() - minicubeBounary && sphere->GetY() < cubes[i]->GetY() + minicubeBounary &&
+				sphere->GetZ() > cubes[i]->GetZ() - minicubeBounary && sphere->GetZ() < cubes[i]->GetZ() + minicubeBounary) {
 				//cubeMesh->RemoveModel(cube);
 
 				//Update score for picking a sphere
 				playerPoints += 10;
 				
 				//Hide the cube
-				respawnCube(cubes, sphere, cube);
+				respawnCube(cubes, sphere, cubes[i]);
 
 				//Scale the player every 40 points and increase score 
 				if (playerPoints % 40 == 0) {
@@ -228,8 +229,35 @@ void main()
 					sphere->SetY(sphereRadius);
 					minicubeBounary = sphereRadius + 2.5;
 				}
+
+				//index of 13 is only hypercube
+				if (i == 12) {
+					cubes[i]->MoveLocalY(-100);
+					spherePowerUp = Hyper;
+				}
 			}
 		}
+
+
+		//Hyper mode
+		if (spherePowerUp == Hyper) {
+			sphere->SetSkin("hypersphere.jpg");
+			hyperTime -= frameTime;
+
+			for (int i = 0; i < NUMofCUBES; i++) {
+				if (vectorLen(sphere, cubes[i]) < 50) {
+					cubes[i]->LookAt(sphere);
+					cubes[i]->MoveLocalZ(kSphereSpeed * frameTime/40 * vectorLen(sphere, cubes[i]));
+				}
+			}
+
+			if (hyperTime < 0) {
+				spherePowerUp = Regular;
+				hyperTime = 5.0;
+				sphere->SetSkin("regularsphere.jpg");
+			}
+		}
+
 		//Game finished
 		if (playerPoints >= 120) {
 			myFont->Draw("Congratulations! You have won!", 400, 300);
