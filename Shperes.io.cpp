@@ -22,6 +22,8 @@ enum EGameState {GameOver, Playing, Paused, GameWon};
 EGameState gameState = Playing;
 enum ECamera {TopView, Isometric};
 
+
+
 //Functions
 
 /// <summary>
@@ -47,17 +49,25 @@ float vectorLen(IModel* a, IModel* b) {
 /// <param name="object">The object we are mesuring distance from.</param>
 /// <param name="arraySize">Number of objects in the array.</param>
 /// <returns>Shortest distance to given object (Float). </returns>
-float closestObject(IModel** array, IModel* playerMesh, IModel* object, int arraySize = NUMofCUBES) {
+float closestObject(IModel** array, IModel* playerMesh, IModel* object, int arraySize) {
 	float smallesDistance = vectorLen(object, playerMesh);
+	
 
 	for (int i = 0; i < arraySize; i++) {
-		if (vectorLen(object, array[i]) < smallesDistance) {
-			smallesDistance = vectorLen(object, array[i]);
+		int distance = vectorLen(object, array[i]);
+		if (distance < smallesDistance && distance > 0) {
+			smallesDistance = distance;
 		}
 	}
 	return smallesDistance;
 }
 
+void respawnCube(IModel** array, IModel* playerMesh, IModel* object, int arraySize = NUMofCUBES) {
+	object->SetPosition(rand() % 160 - 80, 5, rand() % 160 - 80);
+	while (closestObject(array, playerMesh, object, arraySize) < minumumDistance) {
+		object->SetPosition(rand() % 160 - 80, 5, rand() % 160 - 80);
+	}
+}
 
 /// <summary>
 /// Randomizes the cube positions withing the -80/80 coordinates.
@@ -67,16 +77,11 @@ float closestObject(IModel** array, IModel* playerMesh, IModel* object, int arra
 void randomCubeGenerator(IModel **array, IMesh* mesh, IModel* playerMesh) {
 	
 	//Random cube generation
-	srand(time(NULL));
+	
 	for (int i = 0; i < NUMofCUBES; i++) {
 
 		IModel* newCube = mesh->CreateModel(rand() % 160 - 80, 5, rand() % 160 - 80);
-		while (closestObject(array, playerMesh, newCube, i) < minumumDistance) {
-			newCube->SetPosition(rand() % 160 - 80, 5, rand() % 160 - 80);
-		}
-
-		cout << closestObject(array, playerMesh, newCube, i) << endl;
-
+		respawnCube(array, playerMesh, newCube, i);
 		array[i] = newCube;
 	}	
 }
@@ -124,7 +129,7 @@ void main()
 	
 	//Holds the cubes
 	IModel* cubes[NUMofCUBES];
-
+	srand(time(NULL));
 	randomCubeGenerator(cubes, cubeMesh, sphere);
 
 	
@@ -182,8 +187,7 @@ void main()
 			myCamera->RotateLocalX(45);
 			myECamera = Isometric;
 		}
-			
-			
+				
 		if (myEngine->KeyHit(Key_1) && myECamera == Isometric) {
 			myCamera->ResetOrientation();
 			myCamera->SetPosition(0, 200, 0);
@@ -215,7 +219,7 @@ void main()
 				playerPoints += 10;
 				
 				//Hide the cube
-				cube->MoveLocalY(-100);
+				respawnCube(cubes, sphere, cube);
 
 				//Scale the player every 40 points and increase score 
 				if (playerPoints % 40 == 0) {
