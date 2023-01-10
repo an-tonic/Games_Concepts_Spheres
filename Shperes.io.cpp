@@ -9,14 +9,15 @@ using namespace tle;
 using namespace std;
 
 //Constants
-float kSphereSpeed = 0.05f;
-float kRotationSpeed = 0.05f;
-float kCamereSpeed = 0.05f;
+float kSphereSpeed = 90.0f;
+float kRotationSpeed = 200.0f;
+float kCamereSpeed = 90.0f;
+
 int playerPoints = 0;
 int sphereRadius = 10;
+float minicubeBounary = 2.5 + sphereRadius;
 
-
-enum EGameState {GameOver, Playing, Paused};
+enum EGameState {GameOver, Playing, Paused, GameWon};
 EGameState gameState = Playing;
 enum ECamera {TopView, Isometric};
 
@@ -29,7 +30,7 @@ enum ECamera {TopView, Isometric};
 /// <param name="b">The pointer to the "to" object.</param>
 /// <returns>Length of a vector</returns>
 float vectorLen(IModel* a, IModel* b) {
-	float vectorX = b->GetX() - a->GetX();
+ 	float vectorX = b->GetX() - a->GetX();
 	float vectorY = b->GetY() - a->GetY();
 	float vectorZ = b->GetZ() - a->GetZ();
 
@@ -101,80 +102,78 @@ void main()
 	
 	
 	
+	
 	//Holds the cubes
 	IModel* cubes[NUMofCUBES];
 
 	randomCubeGenerator(cubes, cubeMesh, sphere);
 
 
+	//Starting the timer for variable timer
+	myEngine->Timer();
+
 	// The main game loop, repeat until engine is stopped
-	while (myEngine->IsRunning() && gameState != GameOver)
+	while (myEngine->IsRunning())
 	{
 		// Draw the scene
 		
 		myEngine->DrawScene();
-		
+
+		//Storage for previous frame render time
+		float frameTime = myEngine->Timer();
 
 		/**** Update your scene each frame here ****/
 		myFont->Draw("Points: " + to_string(playerPoints), 1100, 10);
-
-
-		if (gameState != Paused) {
+		
+		if (gameState != Paused && gameState != GameOver && gameState != GameWon) {
 			//The sphere movement
 			if (myEngine->KeyHeld(Key_W)) {
-				sphere->MoveLocalZ(kSphereSpeed);
+				sphere->MoveLocalZ(kSphereSpeed * frameTime);
 			}
 			if (myEngine->KeyHeld(Key_S)) {
-				sphere->MoveLocalZ(-kSphereSpeed);
+				sphere->MoveLocalZ(-kSphereSpeed * frameTime);
 			}
 			if (myEngine->KeyHeld(Key_A)) {
-				sphere->RotateLocalY(-kRotationSpeed);
+				sphere->RotateLocalY(-kRotationSpeed * frameTime);
 			}
 			if (myEngine->KeyHeld(Key_D)) {
-				sphere->RotateLocalY(kRotationSpeed);
+				sphere->RotateLocalY(kRotationSpeed * frameTime);
 			}
 			//Camere movement
 			if (myEngine->KeyHeld(Key_Right)) {
-				myCamera->MoveX(kCamereSpeed);
+				myCamera->MoveX(kCamereSpeed * frameTime);
 			}
 			if (myEngine->KeyHeld(Key_Left)) {
-				myCamera->MoveX(-kCamereSpeed);
+				myCamera->MoveX(-kCamereSpeed * frameTime);
 			}
 			if (myEngine->KeyHeld(Key_Up)) {
-				myCamera->MoveZ(kCamereSpeed);
+				myCamera->MoveZ(kCamereSpeed * frameTime);
 			}
 			if (myEngine->KeyHeld(Key_Down)) {
-				myCamera->MoveZ(-kCamereSpeed);
+				myCamera->MoveZ(-kCamereSpeed * frameTime);
 			}
-			//Isometric camera
-			if (myEngine->KeyHit(Key_2) && myECamera == TopView) {
-				myCamera->ResetOrientation();
-				myCamera->SetPosition(150, 150, -150);
-				myCamera->RotateLocalY(-45);
-				myCamera->RotateLocalX(45);
-				myECamera = Isometric;
-			}
-			
-			
-			if (myEngine->KeyHit(Key_1) && myECamera == Isometric) {
-				myCamera->ResetOrientation();
-				myCamera->SetPosition(0, 200, 0);
-				myCamera->RotateLocalX(90);
-				myECamera = TopView;
-			}
-
 		}
-		//Exit game
-		if (myEngine->KeyHit(Key_Escape)) {
-			gameState = GameOver;
+		//Isometric camera
+		if (myEngine->KeyHit(Key_2) && myECamera == TopView) {
+			myCamera->ResetOrientation();
+			myCamera->SetPosition(150, 150, -150);
+			myCamera->RotateLocalY(-45);
+			myCamera->RotateLocalX(45);
+			myECamera = Isometric;
+		}
+			
+			
+		if (myEngine->KeyHit(Key_1) && myECamera == Isometric) {
+			myCamera->ResetOrientation();
+			myCamera->SetPosition(0, 200, 0);
+			myCamera->RotateLocalX(90);
+			myECamera = TopView;
 		}
 
 		//Game pause
 		if (myEngine->KeyHit(Key_P)) {
 			if (gameState == Playing) {
-				
-				gameState = Paused;
-				
+				gameState = Paused;				
 			}else{
 				gameState = Playing;
 			}
@@ -186,11 +185,13 @@ void main()
 		//Cube proximity evaluator
 		for (IModel* cube : cubes) {
 			
-			if (vectorLen(sphere, cube) < 5 + 5) {
+			if (sphere->GetX() > cube->GetX() - minicubeBounary && sphere->GetX() < cube->GetX() + minicubeBounary &&
+				sphere->GetY() > cube->GetY() - minicubeBounary && sphere->GetY() < cube->GetY() + minicubeBounary &&
+				sphere->GetZ() > cube->GetZ() - minicubeBounary && sphere->GetZ() < cube->GetZ() + minicubeBounary) {
 				//cubeMesh->RemoveModel(cube);
 
 				//Update score for picking a sphere
-				playerPoints += 10;
+				playerPoints += 100;
 				
 				//Hide the cube
 				cube->MoveLocalY(-100);
@@ -200,22 +201,28 @@ void main()
 					sphere->Scale(1.2);
 					sphereRadius *= 1.2;
 					sphere->SetY(sphereRadius);
-					
+					minicubeBounary = sphereRadius + 2.5;
 				}
-
-		
 			}
 		}
-
-		
+		//Game finished
+		if (playerPoints >= 120) {
+			myFont->Draw("Congratulations! You have won!", 400, 300);
+			gameState = GameWon;
+		}
+		//Exit game
+		if (myEngine->KeyHit(Key_Escape)) {
+			myEngine->Stop();
+		}
 
 		//Game over when outside of island
-		/*if (abs(sphere->GetX()) > 100 || abs(sphere->GetZ()) > 100) {
+		if (abs(sphere->GetX()) > 100 || abs(sphere->GetZ()) > 100) {
+			myFont->Draw("Congratulations! You have DIED!", 400, 300);
 			gameState = GameOver;
-		}*/
+		}
 		
 	}
-
+	
 	// Delete the 3D engine now we are finished with it
 	myEngine->Delete();
 }
