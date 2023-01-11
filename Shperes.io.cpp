@@ -14,6 +14,7 @@ float kRotationSpeed = 200.0f;
 float kCamereSpeed = 90.0f;
 
 int playerPoints = 0;
+int enemyPoints = 0;
 int sphereRadius = 10;
 int minumumDistance = 10;
 float minicubeBounary = 2.5 + sphereRadius;
@@ -91,6 +92,7 @@ void randomCubeGenerator(IModel **array, IMesh* mesh, IModel* playerMesh) {
 
 void main()
 {
+	srand(time(NULL));
 
 	// Create a 3D engine (using TLX engine here) and open a window for it
 	I3DEngine* myEngine = New3DEngine( kTLX );
@@ -120,9 +122,18 @@ void main()
 	IMesh* sphereMesh = myEngine->LoadMesh("spheremesh.x");
 	IModel* sphere = sphereMesh->CreateModel(0, 10, 0);
 	
+	IMesh* enemySphereMesh = myEngine->LoadMesh("spheremesh.x");
+	
+	IModel* enemySphere = enemySphereMesh->CreateModel((rand() % 160 - 80), 10, (rand() % 160 - 80));
+	while (vectorLen(sphere, enemySphere) < 60)
+	{
+		enemySphere->SetPosition((rand() % 160 - 80), 10, (rand() % 160 - 80));
+	}
+	enemySphere->SetSkin("enemysphere.jpg");
+
 	IMesh* cubeMesh = myEngine->LoadMesh("minicube.x");
-	srand(time(NULL));
-	IModel* hypercube = cubeMesh->CreateModel(rand() % 160 - 80, 5, rand() % 160 - 80);
+	
+	IModel* hypercube = cubeMesh->CreateModel(rand() % 160 - 80, 10, rand() % 160 - 80);
 	hypercube->SetSkin("hypercube.jpg");
 	
 	
@@ -150,9 +161,14 @@ void main()
 		float frameTime = myEngine->Timer();
 
 		/**** Update your scene each frame here ****/
-		myFont->Draw("Points: " + to_string(playerPoints), 1100, 10);
 		
-		if (gameState != Paused && gameState != GameOver && gameState != GameWon) {
+		
+		
+
+		if (gameState == Playing) {
+			myFont->Draw("My Points: " + to_string(playerPoints), 1270 - myFont->MeasureTextWidth("My Points: " + to_string(playerPoints)), 10);
+			enemySphere->MoveLocalZ(kSphereSpeed * frameTime / 2);
+
 			//The sphere movement
 			if (myEngine->KeyHeld(Key_W)) {
 				sphere->MoveLocalZ(kSphereSpeed * frameTime);
@@ -219,7 +235,6 @@ void main()
 				//Update score for picking a sphere
 				playerPoints += 10;
 				
-				//Hide the cube
 				respawnCube(cubes, sphere, cubes[i]);
 
 				//Scale the player every 40 points and increase score 
@@ -238,11 +253,32 @@ void main()
 			}
 		}
 
+		//Enemy movement
+		float closestCube = 1000;
+		for (int i = 0; i < NUMofCUBES; i++) {
+			
+
+			if (vectorLen(enemySphere, cubes[i]) < closestCube) {
+				enemySphere->LookAt(cubes[i]);
+				
+				closestCube = vectorLen(enemySphere, cubes[i]);
+			}
+			if (vectorLen(enemySphere, cubes[i]) < 10) {
+				respawnCube(cubes, sphere, cubes[i]);
+
+				if (gameState != GameOver) {
+					enemyPoints += 10;
+				}
+				
+			}
+		}
+		
 
 		//Hyper mode
 		if (spherePowerUp == Hyper) {
 			sphere->SetSkin("hypersphere.jpg");
 			hyperTime -= frameTime;
+
 
 			for (int i = 0; i < NUMofCUBES; i++) {
 				if (vectorLen(sphere, cubes[i]) < 50) {
@@ -258,9 +294,11 @@ void main()
 			}
 		}
 
-		//Game finished
+		//Game won
 		if (playerPoints >= 120) {
 			myFont->Draw("Congratulations! You have won!", 400, 300);
+			myFont->Draw("Enemy Points: " + to_string(enemyPoints), 1270 - myFont->MeasureTextWidth("Enemy Points: " + to_string(enemyPoints)), 50);
+			myFont->Draw("Your Points: " + to_string(playerPoints), 1270 - myFont->MeasureTextWidth("Your Points: " + to_string(playerPoints)), 10);
 			gameState = GameWon;
 		}
 		//Exit game
@@ -268,12 +306,22 @@ void main()
 			myEngine->Stop();
 		}
 
+		//Game over when enemy has more points 
+		if (enemyPoints >= 120) {
+			myFont->Draw("Congratulations! You have lost the game to a BOT!", 400, 300);
+			gameState = GameOver;
+		}
+
 		//Game over when outside of island
 		if (abs(sphere->GetX()) > 100 || abs(sphere->GetZ()) > 100) {
 			myFont->Draw("Congratulations! You have DIED!", 400, 300);
 			gameState = GameOver;
 		}
-		
+		if (gameState == GameOver) {
+			myFont->Draw("Enemy Points: " + to_string(enemyPoints), 1270 - myFont->MeasureTextWidth("Enemy Points: " + to_string(enemyPoints)), 10);
+			myFont->Draw("Your Points: " + to_string(playerPoints), 1270 - myFont->MeasureTextWidth("Your Points: " + to_string(playerPoints)), 50);
+			enemySphere->MoveLocalZ(kSphereSpeed* frameTime / 2);
+		}
 	}
 	
 	// Delete the 3D engine now we are finished with it
