@@ -11,7 +11,7 @@ using namespace std;
 //Constants
 float kSphereSpeed = 90.0f;
 float kRotationSpeed = 200.0f;
-float kCamereSpeed = 90.0f;
+float kCamereSpeed = 70.0f;
 
 int playerPoints = 0;
 int enemyPoints = 0;
@@ -22,12 +22,24 @@ double hyperTime = 5.0;
 
 enum EGameState {GameOver, Playing, Paused, GameWon};
 EGameState gameState = Playing;
-enum ECamera {TopView, Isometric};
-enum EPowerUp {Regular, Hyper};
 
+enum EPowerUp {Regular, Hyper};
 EPowerUp spherePowerUp = Regular;
 
+enum EEnemySphere {Active, Dead};
+EEnemySphere enemyState = Active;
+
 //Functions
+
+float* returnVector(IModel* a, IModel* b) {
+	float vectorX = b->GetX() - a->GetX();
+	float vectorY = b->GetY() - a->GetY();
+	float vectorZ = b->GetZ() - a->GetZ();
+
+	float fullVector[] = { vectorX, vectorY, vectorZ };
+
+	return fullVector;
+}
 
 /// <summary>
 /// Calculates the vector length.
@@ -36,11 +48,10 @@ EPowerUp spherePowerUp = Regular;
 /// <param name="b">The pointer to the "to" object.</param>
 /// <returns>Length of a vector</returns>
 float vectorLen(IModel* a, IModel* b) {
- 	float vectorX = b->GetX() - a->GetX();
-	float vectorY = b->GetY() - a->GetY();
-	float vectorZ = b->GetZ() - a->GetZ();
+ 	
+	float* someVector =  returnVector(a, b);
 
-	return sqrt(vectorX * vectorX + vectorY * vectorY + vectorZ * vectorZ);
+	return sqrt(someVector[0]* someVector[0] + someVector[1] * someVector[1] + someVector[2] * someVector[2]);
 }
 
 
@@ -106,7 +117,6 @@ void main()
 	//TODO: change camera to manual
 	myCamera->RotateLocalX(90);
 	myCamera->SetPosition(0, 200, 0);
-	ECamera myECamera = TopView;
 
 	IFont* myFont = myEngine->LoadFont("Times New Roman", 36);
 
@@ -120,12 +130,12 @@ void main()
 	IModel* sky = skyMesh->CreateModel(0, -960, 0);
 
 	IMesh* sphereMesh = myEngine->LoadMesh("spheremesh.x");
-	IModel* sphere = sphereMesh->CreateModel(0, 10, 0);
+	IModel* playerSphere = sphereMesh->CreateModel(0, 10, 0);
 	
 	IMesh* enemySphereMesh = myEngine->LoadMesh("spheremesh.x");
 	
-	IModel* enemySphere = enemySphereMesh->CreateModel((rand() % 160 - 80), 10, (rand() % 160 - 80));
-	while (vectorLen(sphere, enemySphere) < 60)
+	IModel* enemySphere = enemySphereMesh->CreateModel((rand() % 160 - 80), sphereRadius, (rand() % 160 - 80));
+	while (vectorLen(playerSphere, enemySphere) < 60)
 	{
 		enemySphere->SetPosition((rand() % 160 - 80), 10, (rand() % 160 - 80));
 	}
@@ -142,7 +152,7 @@ void main()
 	
 	cubes = new IModel * [NUMofCUBES];
 
-	randomCubeGenerator(cubes, cubeMesh, sphere);
+	randomCubeGenerator(cubes, cubeMesh, playerSphere);
 
 	cubes[NUMofCUBES] = hypercube;
 	
@@ -161,26 +171,23 @@ void main()
 		float frameTime = myEngine->Timer();
 
 		/**** Update your scene each frame here ****/
-		
-		
-		
 
-		if (gameState == Playing) {
+			if (gameState == Playing) {
 			myFont->Draw("My Points: " + to_string(playerPoints), 1270 - myFont->MeasureTextWidth("My Points: " + to_string(playerPoints)), 10);
 			enemySphere->MoveLocalZ(kSphereSpeed * frameTime / 2);
 
 			//The sphere movement
 			if (myEngine->KeyHeld(Key_W)) {
-				sphere->MoveLocalZ(kSphereSpeed * frameTime);
+				playerSphere->MoveLocalZ(kSphereSpeed * frameTime);
 			}
 			if (myEngine->KeyHeld(Key_S)) {
-				sphere->MoveLocalZ(-kSphereSpeed * frameTime);
+				playerSphere->MoveLocalZ(-kSphereSpeed * frameTime);
 			}
 			if (myEngine->KeyHeld(Key_A)) {
-				sphere->RotateLocalY(-kRotationSpeed * frameTime);
+				playerSphere->RotateLocalY(-kRotationSpeed * frameTime);
 			}
 			if (myEngine->KeyHeld(Key_D)) {
-				sphere->RotateLocalY(kRotationSpeed * frameTime);
+				playerSphere->RotateLocalY(kRotationSpeed * frameTime);
 			}
 			//Camere movement
 			if (myEngine->KeyHeld(Key_Right)) {
@@ -197,26 +204,25 @@ void main()
 			}
 		}
 		//Isometric camera
-		if (myEngine->KeyHit(Key_2) && myECamera == TopView) {
+		if (myEngine->KeyHit(Key_2)) {
 			myCamera->ResetOrientation();
 			myCamera->SetPosition(150, 150, -150);
 			myCamera->RotateLocalY(-45);
 			myCamera->RotateLocalX(45);
-			myECamera = Isometric;
 		}
-				
-		if (myEngine->KeyHit(Key_1) && myECamera == Isometric) {
+
+		if (myEngine->KeyHit(Key_1)) {
 			myCamera->ResetOrientation();
 			myCamera->SetPosition(0, 200, 0);
-			myCamera->RotateLocalX(90);
-			myECamera = TopView;
+			myCamera->RotateLocalX(90);	
 		}
 
 		//Game pause
 		if (myEngine->KeyHit(Key_P)) {
 			if (gameState == Playing) {
-				gameState = Paused;				
-			}else{
+				gameState = Paused;
+			}
+			else {
 				gameState = Playing;
 			}
 		}
@@ -225,23 +231,23 @@ void main()
 		}
 
 		//Cube proximity evaluator
-		for (int i = 0; i < NUMofCUBES+1; i++) {
-			
-			if (sphere->GetX() > cubes[i]->GetX() - minicubeBounary && sphere->GetX() < cubes[i]->GetX() + minicubeBounary &&
-				sphere->GetY() > cubes[i]->GetY() - minicubeBounary && sphere->GetY() < cubes[i]->GetY() + minicubeBounary &&
-				sphere->GetZ() > cubes[i]->GetZ() - minicubeBounary && sphere->GetZ() < cubes[i]->GetZ() + minicubeBounary) {
+		for (int i = 0; i < NUMofCUBES + 1; i++) {
+
+			if (playerSphere->GetX() > cubes[i]->GetX() - minicubeBounary && playerSphere->GetX() < cubes[i]->GetX() + minicubeBounary &&
+				playerSphere->GetY() > cubes[i]->GetY() - minicubeBounary && playerSphere->GetY() < cubes[i]->GetY() + minicubeBounary &&
+				playerSphere->GetZ() > cubes[i]->GetZ() - minicubeBounary && playerSphere->GetZ() < cubes[i]->GetZ() + minicubeBounary) {
 				//cubeMesh->RemoveModel(cube);
 
 				//Update score for picking a sphere
 				playerPoints += 10;
-				
-				respawnCube(cubes, sphere, cubes[i]);
+
+				respawnCube(cubes, playerSphere, cubes[i]);
 
 				//Scale the player every 40 points and increase score 
 				if (playerPoints % 40 == 0) {
-					sphere->Scale(1.2);
+					playerSphere->Scale(1.2);
 					sphereRadius *= 1.2;
-					sphere->SetY(sphereRadius);
+					playerSphere->SetY(sphereRadius);
 					minicubeBounary = sphereRadius + 2.5;
 				}
 
@@ -253,44 +259,73 @@ void main()
 			}
 		}
 
-		//Enemy movement
-		float closestCube = 1000;
-		for (int i = 0; i < NUMofCUBES; i++) {
-			
+		if (enemyState == Active){
+			//Spheres collision and logic
 
-			if (vectorLen(enemySphere, cubes[i]) < closestCube) {
-				enemySphere->LookAt(cubes[i]);
-				
-				closestCube = vectorLen(enemySphere, cubes[i]);
-			}
-			if (vectorLen(enemySphere, cubes[i]) < 10) {
-				respawnCube(cubes, sphere, cubes[i]);
+			//"10" is the radious of the enemy - it does not change
+			if (vectorLen(playerSphere, enemySphere) < sphereRadius + 10) {
+				//Points difference not greater than 40
+				if (abs(playerPoints - enemyPoints) < 40) {
+					float* collisonVector = returnVector(enemySphere, playerSphere);
+					playerSphere->Move(collisonVector[0], collisonVector[1], collisonVector[2]);
+					enemySphere->Move(-collisonVector[0], -collisonVector[1], -collisonVector[2]);
 
-				if (gameState != GameOver) {
-					enemyPoints += 10;
 				}
-				
+				//Player has more points
+				else if (playerPoints > enemyPoints) {
+					enemySphere->MoveY(-100);
+					enemyState = Dead;
+					playerPoints += 40;
+					sphereRadius *= 1.2;
+					playerSphere->SetY(sphereRadius);
+					minicubeBounary = sphereRadius + 2.5;
+				}
+				//Enemy has more points
+				else {
+					enemyPoints += 40;
+					enemySphere->Scale(1.2);
+					enemySphere->SetY(12);
+
+					gameState = GameOver;
+				}
+			}
+			//Enemy movement
+			float closestCube = 1000;
+			for (int i = 0; i < NUMofCUBES; i++) {
+
+
+				if (vectorLen(enemySphere, cubes[i]) < closestCube) {
+					enemySphere->LookAt(cubes[i]);
+
+					closestCube = vectorLen(enemySphere, cubes[i]);
+				}
+				if (vectorLen(enemySphere, cubes[i]) < 10) {
+					respawnCube(cubes, playerSphere, cubes[i]);
+
+					if (gameState != GameOver) {
+						enemyPoints += 10;
+					}
+
+				}
 			}
 		}
-		
-
 		//Hyper mode
 		if (spherePowerUp == Hyper) {
-			sphere->SetSkin("hypersphere.jpg");
+			playerSphere->SetSkin("hypersphere.jpg");
 			hyperTime -= frameTime;
 
 
 			for (int i = 0; i < NUMofCUBES; i++) {
-				if (vectorLen(sphere, cubes[i]) < 50) {
-					cubes[i]->LookAt(sphere);
-					cubes[i]->MoveLocalZ(kSphereSpeed * frameTime/40 * vectorLen(sphere, cubes[i]));
+				if (vectorLen(playerSphere, cubes[i]) < 50) {
+					cubes[i]->LookAt(playerSphere);
+					cubes[i]->MoveLocalZ(kSphereSpeed * frameTime/40 * vectorLen(playerSphere, cubes[i]));
 				}
 			}
 
 			if (hyperTime < 0) {
 				spherePowerUp = Regular;
 				hyperTime = 5.0;
-				sphere->SetSkin("regularsphere.jpg");
+				playerSphere->SetSkin("regularsphere.jpg");
 			}
 		}
 
@@ -313,7 +348,7 @@ void main()
 		}
 
 		//Game over when outside of island
-		if (abs(sphere->GetX()) > 100 || abs(sphere->GetZ()) > 100) {
+		if (abs(playerSphere->GetX()) > 100 || abs(playerSphere->GetZ()) > 100) {
 			myFont->Draw("Congratulations! You have DIED!", 400, 300);
 			gameState = GameOver;
 		}
