@@ -15,10 +15,14 @@ float kCamereSpeed = 70.0f;
 
 int playerPoints = 0;
 int enemyPoints = 0;
-int sphereRadius = 10;
-int minumumDistance = 10;
+float sphereRadius = 10;
+int minumumDistanceToObject = 10;
 float minicubeBounary = 2.5 + sphereRadius;
 double hyperTime = 5.0;
+float push = 0.02;
+bool pushSpheres = false;
+float componentX = 0.0;
+float componentZ = 0.0;
 
 enum EGameState {GameOver, Playing, Paused, GameWon};
 EGameState gameState = Playing;
@@ -66,9 +70,9 @@ float vectorLen(IModel* a, IModel* b) {
 float closestObject(IModel** array, IModel* playerMesh, IModel* object, int arraySize) {
 	float smallesDistance = vectorLen(object, playerMesh);
 	
-
+	
 	for (int i = 0; i < arraySize; i++) {
-		int distance = vectorLen(object, array[i]);
+		float distance = vectorLen(object, array[i]);
 		if (distance < smallesDistance && distance > 0) {
 			smallesDistance = distance;
 		}
@@ -76,9 +80,17 @@ float closestObject(IModel** array, IModel* playerMesh, IModel* object, int arra
 	return smallesDistance;
 }
 
+
+/// <summary>
+/// Iteratively randomly places the cube far from othercubes and players
+/// </summary>
+/// <param name="array">Collection of objects to take distance from.</param>
+/// <param name="playerMesh">The player object.</param>
+/// <param name="object">The object we are mesuring distance from.</param>
+/// <param name="arraySize">Number of objects in the array.</param>
 void respawnCube(IModel** array, IModel* playerMesh, IModel* object, int arraySize = NUMofCUBES) {
 	object->SetPosition(rand() % 160 - 80, 5, rand() % 160 - 80);
-	while (closestObject(array, playerMesh, object, arraySize) < minumumDistance) {
+	while (closestObject(array, playerMesh, object, arraySize) < minumumDistanceToObject) {
 		object->SetPosition(rand() % 160 - 80, 5, rand() % 160 - 80);
 	}
 }
@@ -98,9 +110,6 @@ void randomCubeGenerator(IModel **array, IMesh* mesh, IModel* playerMesh) {
 	}	
 }
 
-
-
-
 void main()
 {
 	srand(time(NULL));
@@ -110,7 +119,9 @@ void main()
 	myEngine->StartWindowed();
 
 	// Add default folder for meshes and other media
-	myEngine->AddMediaFolder( "C:\\Users\\aserdyukov\\source\\repos\\Games-Concepts-Spheres\\Assessment1Resources");
+	myEngine->AddMediaFolder( "./Assessment1Resources");
+
+
 
 	/**** Set up your scene here ****/
 	ICamera* myCamera = myEngine->CreateCamera(kFPS);
@@ -137,22 +148,26 @@ void main()
 	IModel* enemySphere = enemySphereMesh->CreateModel((rand() % 160 - 80), sphereRadius, (rand() % 160 - 80));
 	while (vectorLen(playerSphere, enemySphere) < 60)
 	{
-		enemySphere->SetPosition((rand() % 160 - 80), 10, (rand() % 160 - 80));
+		enemySphere->SetPosition((rand() % 160 - 80), sphereRadius, (rand() % 160 - 80));
 	}
 	enemySphere->SetSkin("enemysphere.jpg");
 
+
 	IMesh* cubeMesh = myEngine->LoadMesh("minicube.x");
 	
-	IModel* hypercube = cubeMesh->CreateModel(rand() % 160 - 80, 10, rand() % 160 - 80);
-	hypercube->SetSkin("hypercube.jpg");
 	
-	
+
 	//Holds the cubes
 	IModel** cubes;
 	
 	cubes = new IModel * [NUMofCUBES];
 
 	randomCubeGenerator(cubes, cubeMesh, playerSphere);
+
+	IModel* hypercube = cubeMesh->CreateModel();
+	respawnCube(cubes, playerSphere, hypercube);
+
+	hypercube->SetSkin("hypercube.jpg");
 
 	cubes[NUMofCUBES] = hypercube;
 	
@@ -163,6 +178,7 @@ void main()
 	// The main game loop, repeat until engine is stopped
 	while (myEngine->IsRunning())
 	{
+
 		// Draw the scene
 		myEngine->StopMouseCapture();
 		myEngine->DrawScene();
@@ -172,7 +188,7 @@ void main()
 
 		/**** Update your scene each frame here ****/
 
-			if (gameState == Playing) {
+		if (gameState == Playing) {
 			myFont->Draw("My Points: " + to_string(playerPoints), 1270 - myFont->MeasureTextWidth("My Points: " + to_string(playerPoints)), 10);
 			enemySphere->MoveLocalZ(kSphereSpeed * frameTime / 2);
 
@@ -202,6 +218,53 @@ void main()
 			if (myEngine->KeyHeld(Key_Down)) {
 				myCamera->MoveZ(-kCamereSpeed * frameTime);
 			}
+
+			//Cube proximity evaluator
+			for (int i = 0; i < NUMofCUBES + 1; i++) {
+
+				if (playerSphere->GetX() > cubes[i]->GetX() - minicubeBounary && playerSphere->GetX() < cubes[i]->GetX() + minicubeBounary &&
+					playerSphere->GetY() > cubes[i]->GetY() - minicubeBounary && playerSphere->GetY() < cubes[i]->GetY() + minicubeBounary &&
+					playerSphere->GetZ() > cubes[i]->GetZ() - minicubeBounary && playerSphere->GetZ() < cubes[i]->GetZ() + minicubeBounary) {
+
+
+					//Update score for picking a sphere
+					playerPoints += 10;
+
+					respawnCube(cubes, playerSphere, cubes[i]);
+
+					//Scale the player every 40 points and increase score 
+					if (playerPoints % 40 == 0) {
+						playerSphere->Scale(1.2);
+						sphereRadius *= 1.2;
+						playerSphere->SetY(sphereRadius);
+						minicubeBounary = sphereRadius + 2.5;
+					}
+
+					//index of 13 is only hypercube
+					if (i == 12) {
+						cubes[i]->MoveLocalY(-100);
+						spherePowerUp = Hyper;
+					}
+				}
+			}
+			//Hyper mode
+			if (spherePowerUp == Hyper) {
+				playerSphere->SetSkin("hypersphere.jpg");
+				hyperTime -= frameTime;
+
+				for (int i = 0; i < NUMofCUBES; i++) {
+					if (vectorLen(playerSphere, cubes[i]) < 50) {
+						cubes[i]->LookAt(playerSphere);
+						cubes[i]->MoveLocalZ(kSphereSpeed * frameTime / 40 * vectorLen(playerSphere, cubes[i]));
+					}
+				}
+
+				if (hyperTime < 0) {
+					spherePowerUp = Regular;
+					hyperTime = 5.0;
+					playerSphere->SetSkin("regularsphere.jpg");
+				}
+			}
 		}
 		//Isometric camera
 		if (myEngine->KeyHit(Key_2)) {
@@ -230,46 +293,18 @@ void main()
 			myFont->Draw("PAUSED", 0, 0);
 		}
 
-		//Cube proximity evaluator
-		for (int i = 0; i < NUMofCUBES + 1; i++) {
-
-			if (playerSphere->GetX() > cubes[i]->GetX() - minicubeBounary && playerSphere->GetX() < cubes[i]->GetX() + minicubeBounary &&
-				playerSphere->GetY() > cubes[i]->GetY() - minicubeBounary && playerSphere->GetY() < cubes[i]->GetY() + minicubeBounary &&
-				playerSphere->GetZ() > cubes[i]->GetZ() - minicubeBounary && playerSphere->GetZ() < cubes[i]->GetZ() + minicubeBounary) {
-				//cubeMesh->RemoveModel(cube);
-
-				//Update score for picking a sphere
-				playerPoints += 10;
-
-				respawnCube(cubes, playerSphere, cubes[i]);
-
-				//Scale the player every 40 points and increase score 
-				if (playerPoints % 40 == 0) {
-					playerSphere->Scale(1.2);
-					sphereRadius *= 1.2;
-					playerSphere->SetY(sphereRadius);
-					minicubeBounary = sphereRadius + 2.5;
-				}
-
-				//index of 13 is only hypercube
-				if (i == 12) {
-					cubes[i]->MoveLocalY(-100);
-					spherePowerUp = Hyper;
-				}
-			}
-		}
-
+		//Spheres collision and logic
 		if (enemyState == Active){
-			//Spheres collision and logic
-
-			//"10" is the radious of the enemy - it does not change
+			
+			//"10" is the radius of the enemy - it does not change
 			if (vectorLen(playerSphere, enemySphere) < sphereRadius + 10) {
+								
 				//Points difference not greater than 40
-				if (abs(playerPoints - enemyPoints) < 40) {
+				if (abs(playerPoints - enemyPoints) < 40 && gameState != GameOver) {
+					pushSpheres = true;
 					float* collisonVector = returnVector(enemySphere, playerSphere);
-					playerSphere->Move(collisonVector[0], collisonVector[1], collisonVector[2]);
-					enemySphere->Move(-collisonVector[0], -collisonVector[1], -collisonVector[2]);
-
+					componentX = collisonVector[0];
+					componentZ = collisonVector[2];
 				}
 				//Player has more points
 				else if (playerPoints > enemyPoints) {
@@ -281,11 +316,11 @@ void main()
 					minicubeBounary = sphereRadius + 2.5;
 				}
 				//Enemy has more points
-				else {
+				else if (playerPoints < enemyPoints && gameState != GameOver) {
 					enemyPoints += 40;
 					enemySphere->Scale(1.2);
 					enemySphere->SetY(12);
-
+					playerSphere->MoveY(-100);
 					gameState = GameOver;
 				}
 			}
@@ -293,10 +328,8 @@ void main()
 			float closestCube = 1000;
 			for (int i = 0; i < NUMofCUBES; i++) {
 
-
 				if (vectorLen(enemySphere, cubes[i]) < closestCube) {
-					enemySphere->LookAt(cubes[i]);
-
+					enemySphere->LookAt(cubes[i]->GetX(), 10, cubes[i]->GetZ());
 					closestCube = vectorLen(enemySphere, cubes[i]);
 				}
 				if (vectorLen(enemySphere, cubes[i]) < 10) {
@@ -305,33 +338,24 @@ void main()
 					if (gameState != GameOver) {
 						enemyPoints += 10;
 					}
-
 				}
 			}
 		}
-		//Hyper mode
-		if (spherePowerUp == Hyper) {
-			playerSphere->SetSkin("hypersphere.jpg");
-			hyperTime -= frameTime;
 
-
-			for (int i = 0; i < NUMofCUBES; i++) {
-				if (vectorLen(playerSphere, cubes[i]) < 50) {
-					cubes[i]->LookAt(playerSphere);
-					cubes[i]->MoveLocalZ(kSphereSpeed * frameTime/40 * vectorLen(playerSphere, cubes[i]));
-				}
-			}
-
-			if (hyperTime < 0) {
-				spherePowerUp = Regular;
-				hyperTime = 5.0;
-				playerSphere->SetSkin("regularsphere.jpg");
+		//Spheres are pushed from each other
+		if (pushSpheres) {
+			playerSphere->Move(componentX* push, 0, componentZ* push);
+			enemySphere->Move(-componentX * push, 0, -componentZ * push);
+			push -= 0.0003;
+			if (push <= 0) {
+				push = 0.02;
+				pushSpheres = false;
 			}
 		}
 
 		//Game won
 		if (playerPoints >= 120) {
-			myFont->Draw("Congratulations! You have won!", 400, 300);
+			myFont->Draw("Congratulations! You have won!", 635 - myFont->MeasureTextWidth("Congratulations! You have won!")/2, 300);
 			myFont->Draw("Enemy Points: " + to_string(enemyPoints), 1270 - myFont->MeasureTextWidth("Enemy Points: " + to_string(enemyPoints)), 50);
 			myFont->Draw("Your Points: " + to_string(playerPoints), 1270 - myFont->MeasureTextWidth("Your Points: " + to_string(playerPoints)), 10);
 			gameState = GameWon;
@@ -343,7 +367,7 @@ void main()
 
 		//Game over when enemy has more points 
 		if (enemyPoints >= 120) {
-			myFont->Draw("Congratulations! You have lost the game to a BOT!", 400, 300);
+			myFont->Draw("Congratulations!You have lost the game to a BOT!", 635 - myFont->MeasureTextWidth("Congratulations! You have lost the game to a BOT!") / 2, 300);
 			gameState = GameOver;
 		}
 
@@ -351,11 +375,19 @@ void main()
 		if (abs(playerSphere->GetX()) > 100 || abs(playerSphere->GetZ()) > 100) {
 			myFont->Draw("Congratulations! You have DIED!", 400, 300);
 			gameState = GameOver;
+			
 		}
+
+		//Enemy dead when in water
+		if (abs(enemySphere->GetX()) > 100 || abs(enemySphere->GetZ()) > 100) {
+			enemyState = Dead;
+			enemySphere->MoveY(-100);
+		}
+
 		if (gameState == GameOver) {
 			myFont->Draw("Enemy Points: " + to_string(enemyPoints), 1270 - myFont->MeasureTextWidth("Enemy Points: " + to_string(enemyPoints)), 10);
 			myFont->Draw("Your Points: " + to_string(playerPoints), 1270 - myFont->MeasureTextWidth("Your Points: " + to_string(playerPoints)), 50);
-			enemySphere->MoveLocalZ(kSphereSpeed* frameTime / 2);
+			enemySphere->MoveLocalZ(kSphereSpeed * frameTime / 2);
 		}
 	}
 	
