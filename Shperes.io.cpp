@@ -1,3 +1,4 @@
+//Serdyukov Anoniy
 // Shperes.io.cpp: A program using the TL-Engine
 
 #include <TL-Engine.h>	// TL-Engine include file and namespace
@@ -300,7 +301,7 @@ void main()
 			if (vectorLen(playerSphere, enemySphere) < sphereRadius + 10) {
 								
 				//Points difference not greater than 40
-				if (abs(playerPoints - enemyPoints) < 40 && gameState != GameOver) {
+				if (abs(playerPoints - enemyPoints) <= 40 && gameState != GameOver) {
 					pushSpheres = true;
 					float* collisonVector = returnVector(enemySphere, playerSphere);
 					componentX = collisonVector[0];
@@ -321,9 +322,10 @@ void main()
 					enemySphere->Scale(1.2);
 					enemySphere->SetY(12);
 					playerSphere->MoveY(-100);
-					gameState = GameOver;
-				}
+					gameState = GameOver;				
+				}		
 			}
+			
 			//Enemy movement
 			float closestCube = 1000;
 			for (int i = 0; i < NUMofCUBES; i++) {
@@ -367,24 +369,25 @@ void main()
 
 		//Game over when enemy has more points 
 		if (enemyPoints >= 120) {
-			myFont->Draw("Congratulations!You have lost the game to a BOT!", 635 - myFont->MeasureTextWidth("Congratulations! You have lost the game to a BOT!") / 2, 300);
 			gameState = GameOver;
 		}
 
 		//Game over when outside of island
-		if (abs(playerSphere->GetX()) > 100 || abs(playerSphere->GetZ()) > 100) {
+		if (abs(playerSphere->GetX()) > 110 || abs(playerSphere->GetZ()) > 110) {
 			myFont->Draw("Congratulations! You have DIED!", 400, 300);
 			gameState = GameOver;
-			
+			playerSphere->SetY(-5);
 		}
 
 		//Enemy dead when in water
-		if (abs(enemySphere->GetX()) > 100 || abs(enemySphere->GetZ()) > 100) {
+		if (abs(enemySphere->GetX()) > 110 || abs(enemySphere->GetZ()) > 110) {
 			enemyState = Dead;
-			enemySphere->MoveY(-100);
+			enemySphere->SetY(-5);
+			
 		}
 
 		if (gameState == GameOver) {
+			myFont->Draw("Game over", 635 - myFont->MeasureTextWidth("Game over")/2, 250);
 			myFont->Draw("Enemy Points: " + to_string(enemyPoints), 1270 - myFont->MeasureTextWidth("Enemy Points: " + to_string(enemyPoints)), 10);
 			myFont->Draw("Your Points: " + to_string(playerPoints), 1270 - myFont->MeasureTextWidth("Your Points: " + to_string(playerPoints)), 50);
 			enemySphere->MoveLocalZ(kSphereSpeed * frameTime / 2);
